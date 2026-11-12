@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family:sans-serif;padding:20px">
+  <h3>Sonic 3 AIR Offline Bundler</h3>
+  <p>Select all files in your sonic3 folder (Ctrl+A):</p>
+  <input type="file" id="f" multiple><br><br>
+  <button onclick="pack()">Build Sonic3AIR_Offline.html</button>
+  <p id="s"></p>
+<script>
+async function pack(){
+  const files = Array.from(document.getElementById('f').files);
+  if(!files.length) return alert('Select files first!');
+  document.getElementById('s').textContent = 'Packing files... wait ~15 seconds...';
+  const map = {};
+  let html = '';
+  for(const file of files){
+    if(file.name === 'sonic3air_web.html') html = await file.text();
+    else if(file.name !== 'index.html'){
+      const b = new Uint8Array(await file.arrayBuffer());
+      let s = '';
+      for(let i = 0; i < b.length; i += 8192) s += String.fromCharCode.apply(null, b.subarray(i, i + 8192));
+      map[file.name] = btoa(s);
+    }
+  }
+  html = html.replace(/<base[^>]*>/gi, '');
+  const inj = `<script>const F=${JSON.stringify(map)};function U(n,t){const c=n.split('/').pop().split('?')[0];if(!F[c])return null;const b=atob(F[c]),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return URL.createObjectURL(new Blob([a],{type:t||'application/octet-stream'}))}const oF=window.fetch;window.fetch=function(i,o){const u=typeof i==='string'?i:i.url,b=U(u);return oF(b||i,o)};const oX=window.XMLHttpRequest;window.XMLHttpRequest=function(){const x=new oX(),o=x.open;x.open=function(m,u,...r){return o.call(this,m,U(u)||u,...r)};return x};const oW=window.Worker;window.Worker=function(u,o){return new oW(U(u,'application/javascript')||u,o)};<\/script>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html.replace('<head>', '<head>\n' + inj)], {type: 'text/html'}));
+  a.download = 'Sonic3AIR_Offline.html';
+  a.click();
+  document.getElementById('s').textContent = 'Done! Check your Downloads folder.';
+}
+</script>
+</body>
+</html>

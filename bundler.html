@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <body style="font-family:sans-serif;padding:20px">
-  <h3>Sonic 3 AIR Offline Bundler v2</h3>
+  <h3>Sonic 3 AIR Offline Bundler v3</h3>
   <p>Select all files in your sonic3 folder (Ctrl+A):</p>
   <input type="file" id="f" multiple><br><br>
   <button onclick="pack()">Build Sonic3AIR_Offline.html</button>
@@ -26,34 +26,65 @@ async function pack(){
   const inj = `<script>
   const F=${JSON.stringify(map)};
   function getBytes(n){
-    const c=n.split('/').pop().split('?')[0];
-    if(!F[c])return null;
-    const b=atob(F[c]),a=new Uint8Array(b.length);
-    for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
+    if(!n || typeof n !== 'string') return null;
+    const c = n.split('/').pop().split('?')[0];
+    if(!F[c]) return null;
+    const b = atob(F[c]), a = new Uint8Array(b.length);
+    for(let i=0;i<b.length;i++) a[i] = b.charCodeAt(i);
     return a;
   }
-  function getBlob(n,t){
-    const a=getBytes(n);
-    return a?URL.createObjectURL(new Blob([a],{type:t||'application/octet-stream'})):null;
-  }
-  const oF=window.fetch;
-  window.fetch=async function(i,o){
-    const u=typeof i==='string'?i:i.url;
-    const a=getBytes(u);
+  const oF = window.fetch;
+  window.fetch = async function(i, o){
+    const u = typeof i === 'string' ? i : i.url;
+    const a = getBytes(u);
     if(a){
-      const type=u.endsWith('.wasm')?'application/wasm':u.endsWith('.js')?'application/javascript':'application/octet-stream';
-      return new Response(a,{status:200,headers:{'Content-Type':type}});
+      const type = u.endsWith('.wasm') ? 'application/wasm' : u.endsWith('.js') ? 'application/javascript' : 'application/octet-stream';
+      return new Response(a, {status: 200, headers: {'Content-Type': type}});
     }
-    return oF(i,o);
+    return oF(i, o);
   };
-  const oX=window.XMLHttpRequest;
-  window.XMLHttpRequest=function(){
-    const x=new oX(),o=x.open;
-    x.open=function(m,u,...r){return o.call(this,m,getBlob(u)||u,...r)};
-    return x;
+  const OrigXHR = window.XMLHttpRequest;
+  window.XMLHttpRequest = function(){
+    const bytesRef = {data: null};
+    const real = new OrigXHR();
+    return new Proxy(real, {
+      get(target, prop){
+        if(prop === 'open') return function(m, u, ...r){
+          bytesRef.data = getBytes(u);
+          if(!bytesRef.data) return target.open(m, u, ...r);
+        };
+        if(prop === 'send') return function(body){
+          if(bytesRef.data){
+            setTimeout(() => {
+              if(target.onload) target.onload();
+              if(target.onreadystatechange) target.onreadystatechange();
+            }, 10);
+            return;
+          }
+          return target.send(body);
+        };
+        if(prop === 'status') return bytesRef.data ? 200 : target.status;
+        if(prop === 'readyState') return bytesRef.data ? 4 : target.readyState;
+        if(prop === 'response') return bytesRef.data ? bytesRef.data.buffer : target.response;
+        if(prop === 'responseText') return bytesRef.data ? new TextDecoder().decode(bytesRef.data) : target.responseText;
+        const val = target[prop];
+        return typeof val === 'function' ? val.bind(target) : val;
+      },
+      set(target, prop, val){
+        target[prop] = val;
+        return true;
+      }
+    });
   };
-  const oW=window.Worker;
-  window.Worker=function(u,o){return new oW(getBlob(u,'application/javascript')||u,o)};
+  const oW = window.Worker;
+  window.Worker = function(u, o){
+    const a = getBytes(u);
+    if(a){
+      const blob = URL.createObjectURL(new Blob([a], {type: 'application/javascript'}));
+      return new oW(blob, o);
+    }
+    return new oW(u, o);
+  };
   <\/script>`;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([html.replace('<head>', '<head>\n' + inj)], {type: 'text/html'}));
@@ -64,5 +95,4 @@ async function pack(){
 </script>
 </body>
 </html>
-
 

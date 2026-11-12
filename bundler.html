@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <body style="font-family:sans-serif;padding:20px">
-  <h3>Sonic 3 AIR Offline Bundler</h3>
+  <h3>Sonic 3 AIR Offline Bundler v2</h3>
   <p>Select all files in your sonic3 folder (Ctrl+A):</p>
   <input type="file" id="f" multiple><br><br>
   <button onclick="pack()">Build Sonic3AIR_Offline.html</button>
@@ -23,7 +23,38 @@ async function pack(){
     }
   }
   html = html.replace(/<base[^>]*>/gi, '');
-  const inj = `<script>const F=${JSON.stringify(map)};function U(n,t){const c=n.split('/').pop().split('?')[0];if(!F[c])return null;const b=atob(F[c]),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return URL.createObjectURL(new Blob([a],{type:t||'application/octet-stream'}))}const oF=window.fetch;window.fetch=function(i,o){const u=typeof i==='string'?i:i.url,b=U(u);return oF(b||i,o)};const oX=window.XMLHttpRequest;window.XMLHttpRequest=function(){const x=new oX(),o=x.open;x.open=function(m,u,...r){return o.call(this,m,U(u)||u,...r)};return x};const oW=window.Worker;window.Worker=function(u,o){return new oW(U(u,'application/javascript')||u,o)};<\/script>`;
+  const inj = `<script>
+  const F=${JSON.stringify(map)};
+  function getBytes(n){
+    const c=n.split('/').pop().split('?')[0];
+    if(!F[c])return null;
+    const b=atob(F[c]),a=new Uint8Array(b.length);
+    for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);
+    return a;
+  }
+  function getBlob(n,t){
+    const a=getBytes(n);
+    return a?URL.createObjectURL(new Blob([a],{type:t||'application/octet-stream'})):null;
+  }
+  const oF=window.fetch;
+  window.fetch=async function(i,o){
+    const u=typeof i==='string'?i:i.url;
+    const a=getBytes(u);
+    if(a){
+      const type=u.endsWith('.wasm')?'application/wasm':u.endsWith('.js')?'application/javascript':'application/octet-stream';
+      return new Response(a,{status:200,headers:{'Content-Type':type}});
+    }
+    return oF(i,o);
+  };
+  const oX=window.XMLHttpRequest;
+  window.XMLHttpRequest=function(){
+    const x=new oX(),o=x.open;
+    x.open=function(m,u,...r){return o.call(this,m,getBlob(u)||u,...r)};
+    return x;
+  };
+  const oW=window.Worker;
+  window.Worker=function(u,o){return new oW(getBlob(u,'application/javascript')||u,o)};
+  <\/script>`;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([html.replace('<head>', '<head>\n' + inj)], {type: 'text/html'}));
   a.download = 'Sonic3AIR_Offline.html';
@@ -33,3 +64,5 @@ async function pack(){
 </script>
 </body>
 </html>
+
+
